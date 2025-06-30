@@ -1,6 +1,7 @@
 package options
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -213,19 +214,24 @@ func (m *sbomMultiWriter) Write(s sbom.SBOM) (errs error) {
 // sbomStreamWriter implements sbom.Writer for a given format and io.Writer, also providing a close function for cleanup
 type sbomStreamWriter struct {
 	format sbom.FormatEncoder
-	out    io.Writer
+	out    io.WriteCloser
 }
 
 // Write the provided SBOM to the data stream
 func (w *sbomStreamWriter) Write(s sbom.SBOM) error {
-	defer w.Close()
-	return w.format.Encode(w.out, s)
+	bufWriter := bufio.NewWriterSize(w.out, 32*1024) // 32KB buffer
+	defer bufWriter.Flush()
+
+	if err := w.format.Encode(bufWriter, s); err != nil {
+		return fmt.Errorf("unable to encode SBOM: %w", err)
+	}
+	return nil
 }
 
 // Close any resources, such as open files
 func (w *sbomStreamWriter) Close() error {
-	if closer, ok := w.out.(io.Closer); ok {
-		return closer.Close()
+	if w.out != nil {
+		return w.out.Close()
 	}
 	return nil
 }

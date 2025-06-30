@@ -1,6 +1,7 @@
 package spdxjson
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -72,7 +73,6 @@ func (e encoder) Encode(writer io.Writer, s sbom.SBOM) error {
 		doc := v2_2.Document{}
 		err = convert.Document(latestDoc, &doc)
 		encodeDoc = doc
-
 	case "2.3":
 		doc := v2_3.Document{}
 		err = convert.Document(latestDoc, &doc)
@@ -85,8 +85,11 @@ func (e encoder) Encode(writer io.Writer, s sbom.SBOM) error {
 		return fmt.Errorf("unable to convert SBOM to SPDX document: %w", err)
 	}
 
-	enc := json.NewEncoder(writer)
+	// Use a buffered writer for better performance
+	bufWriter := bufio.NewWriterSize(writer, 32*1024) // 32KB buffer
+	defer bufWriter.Flush()
 
+	enc := json.NewEncoder(bufWriter)
 	enc.SetEscapeHTML(false)
 
 	if e.cfg.Pretty {
